@@ -45,10 +45,6 @@
     padding: 16px;
   }
 
-  /* Card fills 100% of whatever height the frame is given.
-     Header and footer stay their natural size; the middle
-     (day-circle row) grows or shrinks to take up whatever
-     space is left, and stays vertically centered in it. */
   .card {
     width: 100%;
     max-width: 360px;
@@ -64,7 +60,7 @@
 
   .card-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 8px;
     padding: 16px;
@@ -75,7 +71,7 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 4px;
+    gap: 8px;
   }
 
   .header-title-row {
@@ -101,18 +97,55 @@
     font-size: 20px;
     font-weight: 300;
     color: var(--text-primary);
+    flex-shrink: 0;
   }
 
+  /* Week / Month toggle */
+  .view-toggle {
+    display: flex;
+    gap: 2px;
+    background: var(--incomplete-circle-bg);
+    border-radius: 999px;
+    padding: 2px;
+  }
+
+  .toggle-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 3px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+
+  .toggle-btn.active {
+    background: var(--mark-bg);
+    color: var(--mark-text);
+  }
+
+  /* Shared content area: fills whatever vertical space is left
+     between header and footer. */
   .card-content {
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
     gap: 6px;
-    padding: 0 16px;
+    padding: 0 16px 12px;
   }
 
+  .card-content.week-view {
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .card-content.month-view {
+    flex-direction: column;
+  }
+
+  /* Week view */
   .day-col {
     display: flex;
     flex-direction: column;
@@ -140,6 +173,7 @@
     transition: background-color 0.15s ease, color 0.15s ease;
     background: var(--incomplete-circle-bg);
     color: var(--incomplete-circle-text);
+    flex-shrink: 0;
   }
 
   .day-circle.complete {
@@ -149,6 +183,38 @@
 
   .day-circle.today {
     border: 2px solid var(--today-ring-color);
+  }
+
+  /* Month view */
+  .month-weekday-row {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .month-weekday-row span {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  .month-grid {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+
+  .month-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .month-cell.empty {
+    visibility: hidden;
   }
 
   .card-footer {
@@ -233,7 +299,10 @@
         </svg>
         <h3>Study Streak</h3>
       </div>
-      <p style="margin:0; font-size:12px;"></p>
+      <div class="view-toggle" id="viewToggle">
+        <button type="button" class="toggle-btn" data-view="week">Week</button>
+        <button type="button" class="toggle-btn" data-view="month">Month</button>
+      </div>
     </div>
     <span class="week-count" id="weekCount">0/7</span>
   </div>
@@ -254,6 +323,7 @@
 
 <script>
   const STORAGE_KEY = 'blocky-study-streak-completed';
+  const VIEW_STORAGE_KEY = 'blocky-study-streak-view';
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
   function toDateStr(d) {
@@ -280,7 +350,38 @@
     }
   }
 
+  function loadViewMode() {
+    try {
+      return localStorage.getItem(VIEW_STORAGE_KEY) || 'week';
+    } catch (e) {
+      return 'week';
+    }
+  }
+
+  function saveViewMode() {
+    try {
+      localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
+    } catch (e) {
+      // ignore
+    }
+  }
+
   let completed = loadCompleted(); // { 'YYYY-MM-DD': true }
+  let viewMode = loadViewMode(); // 'week' | 'month'
+
+  function makeDayCircle(dateStr, label, isComplete, isToday) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'day-circle' + (isComplete ? ' complete' : '') + (isToday ? ' today' : '');
+    btn.setAttribute('aria-label', `Mark complete for ${dateStr}`);
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      completed[dateStr] = !completed[dateStr];
+      saveCompleted();
+      render();
+    });
+    return btn;
+  }
 
   function getWeekDates() {
     const today = new Date();
@@ -316,12 +417,12 @@
     return streak;
   }
 
-  function render() {
+  function renderWeekView(container) {
+    container.className = 'card-content week-view';
+    container.innerHTML = '';
+
     const week = getWeekDates();
     const todayStr = toDateStr(new Date());
-    const daysRow = document.getElementById('daysRow');
-    daysRow.innerHTML = '';
-
     let weekCompletedCount = 0;
 
     week.forEach((date, i) => {
@@ -337,25 +438,105 @@
       label.className = 'day-label';
       label.textContent = dayLabels[i];
 
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'day-circle' + (isComplete ? ' complete' : '') + (isToday ? ' today' : '');
-      btn.setAttribute('aria-label', `Mark complete for ${dateStr}`);
-      btn.textContent = date.getDate();
-      btn.addEventListener('click', () => {
-        completed[dateStr] = !completed[dateStr];
-        saveCompleted();
-        render();
-      });
+      const btn = makeDayCircle(dateStr, date.getDate(), isComplete, isToday);
 
       col.appendChild(label);
       col.appendChild(btn);
-      daysRow.appendChild(col);
+      container.appendChild(col);
     });
 
     document.getElementById('weekCount').textContent = `${weekCompletedCount}/7`;
-    document.getElementById('streakValue').textContent = computeStreak();
   }
+
+  function renderMonthView(container) {
+    container.className = 'card-content month-view';
+    container.innerHTML = '';
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
+    const leadingBlanks = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
+    const totalCells = leadingBlanks + daysInMonth;
+    const numRows = Math.ceil(totalCells / 7);
+
+    const weekdayRow = document.createElement('div');
+    weekdayRow.className = 'month-weekday-row';
+    dayLabels.forEach((l) => {
+      const span = document.createElement('span');
+      span.textContent = l;
+      weekdayRow.appendChild(span);
+    });
+    container.appendChild(weekdayRow);
+
+    const grid = document.createElement('div');
+    grid.className = 'month-grid';
+    grid.style.gridTemplateRows = `repeat(${numRows}, 1fr)`;
+    container.appendChild(grid);
+
+    const todayStr = toDateStr(new Date());
+    let monthCompletedCount = 0;
+
+    for (let i = 0; i < leadingBlanks; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'month-cell empty';
+      grid.appendChild(cell);
+    }
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const dateStr = toDateStr(date);
+      const isComplete = !!completed[dateStr];
+      const isToday = dateStr === todayStr;
+      if (isComplete) monthCompletedCount++;
+
+      const cell = document.createElement('div');
+      cell.className = 'month-cell';
+      cell.appendChild(makeDayCircle(dateStr, day, isComplete, isToday));
+      grid.appendChild(cell);
+    }
+
+    document.getElementById('weekCount').textContent = `${monthCompletedCount}/${daysInMonth}`;
+
+    // Size circles to fit both the column width and the row height,
+    // so a 4-row month and a 6-row month both fill the same space
+    // without overflowing or looking sparse.
+    requestAnimationFrame(() => {
+      const rect = grid.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const colWidth = rect.width / 7;
+      const rowHeight = rect.height / numRows;
+      const diameter = Math.max(14, Math.floor(Math.min(colWidth, rowHeight)) - 6);
+      const fontSize = Math.max(9, Math.floor(diameter * 0.34));
+      grid.querySelectorAll('.day-circle').forEach((c) => {
+        c.style.width = diameter + 'px';
+        c.style.height = diameter + 'px';
+        c.style.fontSize = fontSize + 'px';
+      });
+    });
+  }
+
+  function render() {
+    const daysRow = document.getElementById('daysRow');
+    if (viewMode === 'week') {
+      renderWeekView(daysRow);
+    } else {
+      renderMonthView(daysRow);
+    }
+    document.getElementById('streakValue').textContent = computeStreak();
+    document.querySelectorAll('.toggle-btn').forEach((b) => {
+      b.classList.toggle('active', b.dataset.view === viewMode);
+    });
+  }
+
+  document.querySelectorAll('.toggle-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      viewMode = btn.dataset.view;
+      saveViewMode();
+      render();
+    });
+  });
 
   document.getElementById('completeBtn').addEventListener('click', () => {
     completed[toDateStr(new Date())] = true;
@@ -368,6 +549,8 @@
     saveCompleted();
     render();
   });
+
+  window.addEventListener('resize', render);
 
   render();
 </script>
