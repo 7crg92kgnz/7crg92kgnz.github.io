@@ -36,20 +36,27 @@
     background: transparent;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
     color: var(--text-primary);
+    height: 100%;
   }
 
   body {
     display: flex;
     justify-content: center;
-    padding: 16px;
+    align-items: center;
+    padding: clamp(8px, 2vw, 32px);
+    min-height: 100vh;
   }
 
+  /* The card fills whatever width/height you give the embed frame —
+     no hard max-width cap. Everything inside scales with it via
+     clamp()/vw so it grows or shrinks smoothly instead of just
+     sitting small in a big frame. */
   .card {
     width: 100%;
-    max-width: 420px;
+    max-width: 900px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
-    border-radius: 12px;
+    border-radius: clamp(10px, 1.4vw, 20px);
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
 
@@ -57,8 +64,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 16px;
+    gap: clamp(6px, 1vw, 16px);
+    padding: clamp(14px, 2.6vw, 32px);
   }
 
   .header-left {
@@ -72,27 +79,25 @@
   .header-title-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: clamp(6px, 1vw, 14px);
   }
 
   .header-title-row svg {
-    width: 16px;
-    height: 16px;
+    width: clamp(16px, 2.2vw, 28px);
+    height: clamp(16px, 2.2vw, 28px);
     color: var(--text-primary);
     flex-shrink: 0;
   }
 
   .header-title-row h3 {
     margin: 0;
-    font-size: 15px;
+    font-size: clamp(15px, 2.4vw, 26px);
     font-weight: 500;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .week-count {
-    font-size: 20px;
+    font-size: clamp(20px, 3.4vw, 38px);
     font-weight: 300;
     color: var(--text-primary);
     flex-shrink: 0;
@@ -101,8 +106,8 @@
   .card-content {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 4px;
-    padding: 0 12px 16px;
+    gap: clamp(4px, 1vw, 16px);
+    padding: 0 clamp(12px, 2.6vw, 32px) clamp(14px, 2.6vw, 32px);
   }
 
   .day-col {
@@ -110,12 +115,12 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: clamp(4px, 0.8vw, 10px);
     min-width: 0;
   }
 
   .day-label {
-    font-size: 11px;
+    font-size: clamp(11px, 1.6vw, 18px);
     color: var(--text-muted);
   }
 
@@ -124,12 +129,12 @@
     align-items: center;
     justify-content: center;
     width: 100%;
-    max-width: 34px;
+    max-width: clamp(32px, 7vw, 76px);
     aspect-ratio: 1 / 1;
     border-radius: 9999px;
     border: none;
     padding: 0;
-    font-size: clamp(10px, 3.2vw, 12px);
+    font-size: clamp(11px, 1.8vw, 22px);
     cursor: pointer;
     transition: background-color 0.15s ease, color 0.15s ease;
     background: var(--incomplete-circle-bg);
@@ -149,23 +154,23 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
-    padding: 0 16px 16px;
+    gap: clamp(6px, 1.2vw, 14px);
+    padding: 0 clamp(14px, 2.6vw, 32px) clamp(14px, 2.6vw, 32px);
   }
 
   .streak-row {
     display: flex;
     flex-direction: row;
-    gap: 8px;
+    gap: clamp(6px, 1vw, 14px);
   }
 
   .streak-row .label {
-    font-size: 13px;
+    font-size: clamp(13px, 1.8vw, 20px);
     opacity: 0.6;
   }
 
   .streak-row .value {
-    font-size: 13px;
+    font-size: clamp(13px, 1.8vw, 20px);
     font-weight: 500;
   }
 
@@ -176,7 +181,7 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: clamp(6px, 1.2vw, 14px);
   }
 
   button {
@@ -189,11 +194,11 @@
     justify-content: center;
     gap: 8px;
     white-space: nowrap;
-    border-radius: 6px;
-    font-size: 13px;
+    border-radius: clamp(6px, 0.8vw, 10px);
+    font-size: clamp(13px, 1.8vw, 20px);
     font-weight: 500;
-    height: 36px;
-    padding: 0 16px;
+    height: clamp(36px, 5.4vw, 60px);
+    padding: 0 clamp(14px, 2vw, 28px);
     cursor: pointer;
     transition: opacity 0.15s ease;
     min-width: 0;
@@ -214,19 +219,8 @@
     flex: 1;
   }
 
-  /* Medium containers: tighten up spacing a little */
-  @media (max-width: 360px) {
-    .card-header { padding: 12px; }
-    .card-content { padding: 0 10px 12px; gap: 3px; }
-    .card-footer { padding: 0 12px 12px; }
-    .day-circle { max-width: 30px; }
-    .header-title-row h3 { font-size: 14px; }
-    .week-count { font-size: 18px; }
-  }
-
-  /* Very narrow containers: stack the footer buttons */
+  /* Very narrow frames: stack the footer buttons instead of squeezing */
   @media (max-width: 260px) {
-    body { padding: 10px; }
     .footer-buttons { flex-direction: column; align-items: stretch; }
     .btn-complete { order: -1; }
     .btn { width: 100%; }
