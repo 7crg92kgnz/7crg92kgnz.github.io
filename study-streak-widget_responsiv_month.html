@@ -179,6 +179,40 @@
   }
 
   /* Month view */
+
+  .month-nav {
+    display: grid;
+    grid-template-columns: 32px 1fr 32px;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .month-nav-btn {
+    width: 32px;
+    height: 28px;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .month-nav-btn:hover {
+    background: var(--incomplete-circle-bg);
+  }
+
+  .month-label {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
   .month-weekday-row {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -360,6 +394,8 @@
 
   let completed = loadCompleted(); // { 'YYYY-MM-DD': true }
   let viewMode = loadViewMode(); // 'week' | 'month'
+  let displayedMonth = new Date();
+  displayedMonth = new Date(displayedMonth.getFullYear(), displayedMonth.getMonth(), 1);
 
   function makeDayCircle(dateStr, label, isComplete, isToday) {
     const btn = document.createElement('button');
@@ -443,9 +479,43 @@
     container.className = 'card-content month-view';
     container.innerHTML = '';
 
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
+    const year = displayedMonth.getFullYear();
+    const month = displayedMonth.getMonth();
+
+    const nav = document.createElement('div');
+    nav.className = 'month-nav';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.type = 'button';
+    prevBtn.className = 'month-nav-btn';
+    prevBtn.setAttribute('aria-label', 'Previous month');
+    prevBtn.textContent = '‹';
+    prevBtn.addEventListener('click', () => {
+      displayedMonth = new Date(year, month - 1, 1);
+      render();
+    });
+
+    const monthLabel = document.createElement('div');
+    monthLabel.className = 'month-label';
+    monthLabel.textContent = displayedMonth.toLocaleDateString(undefined, {
+      month: 'long',
+      year: 'numeric'
+    });
+
+    const nextBtn = document.createElement('button');
+    nextBtn.type = 'button';
+    nextBtn.className = 'month-nav-btn';
+    nextBtn.setAttribute('aria-label', 'Next month');
+    nextBtn.textContent = '›';
+    nextBtn.addEventListener('click', () => {
+      displayedMonth = new Date(year, month + 1, 1);
+      render();
+    });
+
+    nav.appendChild(prevBtn);
+    nav.appendChild(monthLabel);
+    nav.appendChild(nextBtn);
+    container.appendChild(nav);
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
     const leadingBlanks = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
