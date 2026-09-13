@@ -46,7 +46,7 @@
 
   .card {
     width: 100%;
-    max-width: 360px;
+    max-width: 420px;
     background: var(--card-bg);
     border: 1px solid var(--card-border);
     border-radius: 12px;
@@ -66,6 +66,7 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+    min-width: 0;
   }
 
   .header-title-row {
@@ -85,19 +86,23 @@
     margin: 0;
     font-size: 15px;
     font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .week-count {
     font-size: 20px;
     font-weight: 300;
     color: var(--text-primary);
+    flex-shrink: 0;
   }
 
   .card-content {
-    display: flex;
-    justify-content: space-between;
-    gap: 6px;
-    padding: 0 16px 16px;
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    padding: 0 12px 16px;
   }
 
   .day-col {
@@ -106,6 +111,7 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
+    min-width: 0;
   }
 
   .day-label {
@@ -117,12 +123,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 32px;
-    width: 32px;
+    width: 100%;
+    max-width: 34px;
+    aspect-ratio: 1 / 1;
     border-radius: 9999px;
     border: none;
     padding: 0;
-    font-size: 12px;
+    font-size: clamp(10px, 3.2vw, 12px);
     cursor: pointer;
     transition: background-color 0.15s ease, color 0.15s ease;
     background: var(--incomplete-circle-bg);
@@ -166,6 +173,7 @@
     display: flex;
     width: 100%;
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
@@ -188,6 +196,7 @@
     padding: 0 16px;
     cursor: pointer;
     transition: opacity 0.15s ease;
+    min-width: 0;
   }
 
   .btn:hover { opacity: 0.85; }
@@ -203,6 +212,24 @@
     background: var(--mark-bg);
     color: var(--mark-text);
     flex: 1;
+  }
+
+  /* Medium containers: tighten up spacing a little */
+  @media (max-width: 360px) {
+    .card-header { padding: 12px; }
+    .card-content { padding: 0 10px 12px; gap: 3px; }
+    .card-footer { padding: 0 12px 12px; }
+    .day-circle { max-width: 30px; }
+    .header-title-row h3 { font-size: 14px; }
+    .week-count { font-size: 18px; }
+  }
+
+  /* Very narrow containers: stack the footer buttons */
+  @media (max-width: 260px) {
+    body { padding: 10px; }
+    .footer-buttons { flex-direction: column; align-items: stretch; }
+    .btn-complete { order: -1; }
+    .btn { width: 100%; }
   }
 </style>
 </head>
@@ -242,11 +269,6 @@
   const STORAGE_KEY = 'blocky-study-streak-completed';
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
-  // Build a LOCAL calendar-date string (YYYY-MM-DD).
-  // Deliberately NOT using toISOString() here — that converts to UTC first,
-  // which silently shifts the date back a day for any timezone ahead of
-  // UTC (e.g. Denmark) and was the cause of "Complete Today" not visibly
-  // marking the right circle.
   function toDateStr(d) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -259,8 +281,6 @@
       const raw = localStorage.getItem(STORAGE_KEY);
       return raw ? JSON.parse(raw) : {};
     } catch (e) {
-      // localStorage not available in this context (e.g. a restricted
-      // preview sandbox) — fall back to in-memory only for this session.
       return {};
     }
   }
