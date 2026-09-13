@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root {
     --card-bg: #ffffff;
@@ -178,41 +179,12 @@
     border: 2px solid var(--today-ring-color);
   }
 
+  .day-circle:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+
   /* Month view */
-
-  .month-nav {
-    display: grid;
-    grid-template-columns: 32px 1fr 32px;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-  }
-
-  .month-nav-btn {
-    width: 32px;
-    height: 28px;
-    border: 1px solid var(--card-border);
-    border-radius: 6px;
-    background: var(--card-bg);
-    color: var(--text-primary);
-    cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .month-nav-btn:hover {
-    background: var(--incomplete-circle-bg);
-  }
-
-  .month-label {
-    text-align: center;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--text-primary);
-  }
   .month-weekday-row {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -311,6 +283,11 @@
     color: var(--mark-text);
     flex: 1;
   }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
 </style>
 </head>
 <body>
@@ -348,9 +325,21 @@
 </div>
 
 <script>
-  const STORAGE_KEY = 'blocky-study-streak-completed';
-  const VIEW_STORAGE_KEY = 'blocky-study-streak-view';
+  // ---- Supabase setup ----
+  // The anon key is meant to be public/client-side. Access to the
+  // "habit_tracker" table is restricted via Row Level Security policies
+  // configured in the Supabase project, not by hiding this key.
+  const SUPABASE_URL = 'https://atdbajatuzvncmxthdin.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF0ZGJhamF0dXp2bmNteHRoZGluIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjA0ODAsImV4cCI6MjEwNDg5NjQ4MH0.WGGV1STvOIFxHWe6PMcMqldwEeQWhTNl7dnT47e6yZ0';
+  const ROW_ID = 'main';
+
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   const dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  let completed = {};   // { 'YYYY-MM-DD': true }
+  let viewMode = 'week'; // 'week' | 'month'
+  let dataReady = false;
 
   function toDateStr(d) {
     const y = d.getFullYear();
@@ -359,55 +348,59 @@
     return `${y}-${m}-${day}`;
   }
 
-  function loadCompleted() {
+  async function loadState() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : {};
+      const { data, error } = await supabaseClient
+        .from('habit_tracker')
+        .select('completed, view_mode')
+        .eq('id', ROW_ID)
+        .single();
+
+      if (error) throw error;
+
+      completed = data.completed || {};
+      viewMode = data.view_mode || 'week';
     } catch (e) {
-      return {};
+      console.error('Could not load from Supabase, starting empty:', e);
+      completed = {};
+      viewMode = 'week';
     }
   }
 
-  function saveCompleted() {
+  async function saveState() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(completed));
+      const { error } = await supabaseClient
+        .from('habit_tracker')
+        .upsert({
+          id: ROW_ID,
+          completed,
+          view_mode: viewMode,
+          updated_at: new Date().toISOString(),
+        });
+      if (error) throw error;
     } catch (e) {
-      // Silently ignore — state just won't survive a refresh here.
+      console.error('Could not save to Supabase:', e);
     }
   }
 
-  function loadViewMode() {
-    try {
-      return localStorage.getItem(VIEW_STORAGE_KEY) || 'week';
-    } catch (e) {
-      return 'week';
-    }
-  }
-
-  function saveViewMode() {
-    try {
-      localStorage.setItem(VIEW_STORAGE_KEY, viewMode);
-    } catch (e) {
-      // ignore
-    }
-  }
-
-  let completed = loadCompleted(); // { 'YYYY-MM-DD': true }
-  let viewMode = loadViewMode(); // 'week' | 'month'
-  let displayedMonth = new Date();
-  displayedMonth = new Date(displayedMonth.getFullYear(), displayedMonth.getMonth(), 1);
-
-  function makeDayCircle(dateStr, label, isComplete, isToday) {
+  function makeDayCircle(dateStr, label, isComplete, isToday, isFuture) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'day-circle' + (isComplete ? ' complete' : '') + (isToday ? ' today' : '');
-    btn.setAttribute('aria-label', `Mark complete for ${dateStr}`);
     btn.textContent = label;
-    btn.addEventListener('click', () => {
-      completed[dateStr] = !completed[dateStr];
-      saveCompleted();
-      render();
-    });
+
+    if (isFuture) {
+      btn.disabled = true;
+      btn.setAttribute('aria-label', `${dateStr} hasn't happened yet`);
+    } else {
+      btn.setAttribute('aria-label', `Mark complete for ${dateStr}`);
+      btn.addEventListener('click', () => {
+        completed[dateStr] = !completed[dateStr];
+        saveState();
+        render();
+      });
+    }
+
     return btn;
   }
 
@@ -451,13 +444,12 @@
 
     const week = getWeekDates();
     const todayStr = toDateStr(new Date());
-    let weekCompletedCount = 0;
 
     week.forEach((date, i) => {
       const dateStr = toDateStr(date);
       const isComplete = !!completed[dateStr];
       const isToday = dateStr === todayStr;
-      if (isComplete) weekCompletedCount++;
+      const isFuture = dateStr > todayStr;
 
       const col = document.createElement('div');
       col.className = 'day-col';
@@ -466,56 +458,21 @@
       label.className = 'day-label';
       label.textContent = dayLabels[i];
 
-      const btn = makeDayCircle(dateStr, date.getDate(), isComplete, isToday);
+      const btn = makeDayCircle(dateStr, date.getDate(), isComplete, isToday, isFuture);
 
       col.appendChild(label);
       col.appendChild(btn);
       container.appendChild(col);
     });
-
   }
 
   function renderMonthView(container) {
     container.className = 'card-content month-view';
     container.innerHTML = '';
 
-    const year = displayedMonth.getFullYear();
-    const month = displayedMonth.getMonth();
-
-    const nav = document.createElement('div');
-    nav.className = 'month-nav';
-
-    const prevBtn = document.createElement('button');
-    prevBtn.type = 'button';
-    prevBtn.className = 'month-nav-btn';
-    prevBtn.setAttribute('aria-label', 'Previous month');
-    prevBtn.textContent = '‹';
-    prevBtn.addEventListener('click', () => {
-      displayedMonth = new Date(year, month - 1, 1);
-      render();
-    });
-
-    const monthLabel = document.createElement('div');
-    monthLabel.className = 'month-label';
-    monthLabel.textContent = displayedMonth.toLocaleDateString(undefined, {
-      month: 'long',
-      year: 'numeric'
-    });
-
-    const nextBtn = document.createElement('button');
-    nextBtn.type = 'button';
-    nextBtn.className = 'month-nav-btn';
-    nextBtn.setAttribute('aria-label', 'Next month');
-    nextBtn.textContent = '›';
-    nextBtn.addEventListener('click', () => {
-      displayedMonth = new Date(year, month + 1, 1);
-      render();
-    });
-
-    nav.appendChild(prevBtn);
-    nav.appendChild(monthLabel);
-    nav.appendChild(nextBtn);
-    container.appendChild(nav);
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const firstDayIndex = new Date(year, month, 1).getDay(); // 0 = Sun
     const leadingBlanks = firstDayIndex === 0 ? 6 : firstDayIndex - 1;
@@ -537,7 +494,6 @@
     container.appendChild(grid);
 
     const todayStr = toDateStr(new Date());
-    let monthCompletedCount = 0;
 
     for (let i = 0; i < leadingBlanks; i++) {
       const cell = document.createElement('div');
@@ -550,18 +506,14 @@
       const dateStr = toDateStr(date);
       const isComplete = !!completed[dateStr];
       const isToday = dateStr === todayStr;
-      if (isComplete) monthCompletedCount++;
+      const isFuture = dateStr > todayStr;
 
       const cell = document.createElement('div');
       cell.className = 'month-cell';
-      cell.appendChild(makeDayCircle(dateStr, day, isComplete, isToday));
+      cell.appendChild(makeDayCircle(dateStr, day, isComplete, isToday, isFuture));
       grid.appendChild(cell);
     }
 
-
-    // Size circles to fit both the column width and the row height,
-    // so a 4-row month and a 6-row month both fill the same space
-    // without overflowing or looking sparse.
     requestAnimationFrame(() => {
       const rect = grid.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return;
@@ -593,26 +545,34 @@
   document.querySelectorAll('.toggle-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
       viewMode = btn.dataset.view;
-      saveViewMode();
+      saveState();
       render();
     });
   });
 
   document.getElementById('completeBtn').addEventListener('click', () => {
     completed[toDateStr(new Date())] = true;
-    saveCompleted();
+    saveState();
     render();
   });
 
   document.getElementById('resetBtn').addEventListener('click', () => {
+    const confirmed = window.confirm('Reset all progress? This can\'t be undone.');
+    if (!confirmed) return;
     completed = {};
-    saveCompleted();
+    saveState();
     render();
   });
 
-  window.addEventListener('resize', render);
+  window.addEventListener('resize', () => {
+    if (dataReady) render();
+  });
 
-  render();
+  (async () => {
+    await loadState();
+    dataReady = true;
+    render();
+  })();
 </script>
 
 </body>
